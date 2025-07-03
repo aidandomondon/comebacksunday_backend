@@ -1,8 +1,8 @@
-from .models import ExtendedUser
+from .models import ExtendedUser, Post
 from django.contrib.auth.models import Group, User
 from rest_framework import permissions, viewsets
 
-from .serializers import GroupSerializer, UserSerializer, ExtendedUserSerializer
+from .serializers import GroupSerializer, UserSerializer, ExtendedUserSerializer, PostSerializer
 
 class ExtendedUserViewSet(viewsets.ModelViewSet):
     """
@@ -27,4 +27,12 @@ class GroupViewSet(viewsets.ModelViewSet):
     """
     queryset = Group.objects.all().order_by('name')
     serializer_class = GroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class PostViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows posts to be viewed or edited.
+    """
+    queryset = Post.objects.all().order_by('datetime')
+    serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated]

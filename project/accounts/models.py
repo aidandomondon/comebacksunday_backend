@@ -18,3 +18,18 @@ class ExtendedUser(models.Model):
         related_name="followers",
         verbose_name="Users this user is following."
     )
+
+class Post(models.Model):
+    """
+    Represents a post made by a user.
+    """
+
+    author = models.ForeignKey(ExtendedUser, on_delete=models.CASCADE, verbose_name="Author of this post")
+    content = models.TextField(max_length=280)
+    datetime = models.DateTimeField(
+        auto_now_add=True, # automatically use the date of this row's creation as this row's datetime
+        verbose_name="Date and time this post was made."
+    )
+
+    def __str__(self):
+        return self.author.__str__() + str(self.id)

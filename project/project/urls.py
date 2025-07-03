@@ -4,6 +4,7 @@ from rest_framework import routers
 from accounts import views
 
 router = routers.DefaultRouter()
+router.register(r'posts', views.PostViewSet)
 router.register(r'extended-users', views.ExtendedUserViewSet)
 router.register(r'users', views.UserViewSet)
 router.register(r'groups', views.GroupViewSet)
