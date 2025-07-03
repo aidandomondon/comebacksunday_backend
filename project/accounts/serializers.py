@@ -20,6 +20,12 @@ class GroupSerializer(serializers.HyperlinkedModelSerializer):
         fields = ['url', 'name']
 
 class PostSerializer(serializers.HyperlinkedModelSerializer):
+    # includes author username in serialization for convenience when displaying posts.
+    # violates OO by not allowing username fetching to be delegated to ExtendedUser / User,
+    # but boosts performance by avoiding the extra API query(s) to ExtendedUser, User.
+    author = serializers.HyperlinkedRelatedField(view_name='extendeduser-detail', read_only=True)
+    author_username = serializers.ReadOnlyField(source='author.user.username')
+    
     class Meta:
         model = Post
-        fields = ['author', 'content', 'datetime']
+        fields = ['author', 'author_username', 'content', 'datetime']
