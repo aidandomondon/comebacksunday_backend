@@ -1,9 +1,15 @@
+"""
+Defines the entities in the database.
+"""
+
 from django.db import models
 from django.contrib.auth.models import User
 
 class ExtendedUser(models.Model):
     """
-    Represents a user of the website.
+    Represents a user of the website. Records extra information, 
+    beyond that which Django's base `User` keeps track of,
+    such as a short biography ("bio") for the user.
     """
     bio = models.TextField(max_length=100, verbose_name="Short self-description of user.")
     user = models.OneToOneField(
@@ -18,6 +24,14 @@ class ExtendedUser(models.Model):
         related_name="followers",
         verbose_name="Users this user is following."
     )
+
+class Follow(models.Model):
+    """
+    Represents an instance of a user following another user.
+    """
+    pk = models.CompositePrimaryKey('follower_id', 'followee_id')
+    follower = models.ForeignKey(ExtendedUser, on_delete=models.CASCADE, related_name='followee')
+    followee = models.ForeignKey(ExtendedUser, on_delete=models.CASCADE, related_name='follower')
 
 class Post(models.Model):
     """
