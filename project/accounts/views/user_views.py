@@ -6,25 +6,25 @@ from ..models import ExtendedUser, Post, Follow
 from rest_framework import permissions, viewsets, mixins, status
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
-from ..serializers import PostSerializer, FollowSerializer
+from ..serializers import PostSerializer, FollowSerializer, ExtendedUserSerializer
 from ..services import DateManager
-from rest_framework.status import HTTP_400_BAD_REQUEST, HTTP_201_CREATED, HTTP_403_FORBIDDEN
+from rest_framework.status import HTTP_201_CREATED, HTTP_403_FORBIDDEN, HTTP_401_UNAUTHORIZED
 from rest_framework.response import Response
-from django.db.models import Subquery
+from django.db.models import Subquery, Q
 from django.db.models.manager import BaseManager
 from django.http import HttpRequest
 
 
 def get_current_user_from_request(request: HttpRequest) -> ExtendedUser:
     """
-    Returns the user currently logged in.
+    Returns the `ExtendedUser` currently logged in.
     """
     return ExtendedUser.objects.get(user=request.user)
 
 
 def get_posts_current_user_can_view(request: HttpRequest) -> BaseManager[Post]:
     """
-    Returns posts the user has permission to view.
+    Returns all posts the user has permission to view.
     """
     # Overriding the queryset to restrict to only posts that the logged-in
     # user has permission to view.
@@ -37,7 +37,10 @@ def get_posts_current_user_can_view(request: HttpRequest) -> BaseManager[Post]:
     # instances that they are permitted to view."
     current_user: ExtendedUser = get_current_user_from_request(request)
     followed_users = Follow.objects.filter(follower=current_user).values('followee')
-    posts = Post.objects.filter(author__in=Subquery(followed_users))
+    posts = Post.objects.filter(
+        Q(author__in=Subquery(followed_users))
+        | Q(author=current_user)    # Users can also view their own posts.
+    )
     return posts
 
 
@@ -46,7 +49,9 @@ class PostViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMix
                   mixins.RetrieveModelMixin,
                   mixins.DestroyModelMixin):
     """
-    API endpoint that allows posts to be viewed or created by users.
+    API endpoint that allows logged-in users to create posts, 
+    view single posts they have permission to view,
+    and delete single posts they have permission to delete.
     """
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -61,8 +66,7 @@ class PostViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMix
 
         # Validate proposed post information (`request.data`)
         serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(status=HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
         
         # Set the post's author to be the currently-logged in user
         extended_user = ExtendedUser.objects.get(user=request.user)
@@ -77,7 +81,8 @@ class PostViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMix
         return get_posts_current_user_can_view(self.request)
 
 
-class FeedViewSet(viewsets.ModelViewSet):
+class FeedViewSet(viewsets.GenericViewSet,  # Only extends `ListModelMixin` because other
+                  mixins.ListModelMixin):   # actions don't make sense in this context.
     """
     API endpoint that allows logged-in users to view posts from users they follow.
     """
@@ -91,7 +96,53 @@ class FeedViewSet(viewsets.ModelViewSet):
         return get_posts_current_user_can_view(self.request) \
             .filter(datetime__gte=DateManager.last_sunday()) \
             .order_by('-datetime')
-    
+
+
+class ExtendedUserViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMixin because `FollowingViewSet`
+                          mixins.CreateModelMixin,  # is intended to be the primary way to view lists of multiple users
+                          mixins.RetrieveModelMixin,
+                          mixins.DestroyModelMixin,
+                          mixins.UpdateModelMixin):
+    """
+    API endpoint that allows users to create their account,
+    and allows logged-in users to view the profiles of users they follow
+    and view/edit their own profile.
+    """
+    serializer_class = ExtendedUserSerializer
+    queryset = ExtendedUser.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+
+    # Overriding `retrieve` to enforce that user can only view their own profile
+    # or the profiles of those they follow.
+    def retrieve(self, request, *args, **kwargs) -> Response:
+        """
+        Gets information about the requested user if the logged-in user is permitted.
+        """
+        instance: ExtendedUser = self.get_object()
+        current_user = get_current_user_from_request(request)
+        serializer: ExtendedUserSerializer = self.get_serializer(data=request.data)
+        current_user_in_followers = Follow.objects.filter(follower=current_user, followee=instance).exists()
+        if current_user_in_followers or current_user == instance:
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data)
+        else:
+            return Response(data="Private account.", status=HTTP_401_UNAUTHORIZED)
+
+
+    # Overriding `destroy` to enforce that user can only delete their own account.
+    def destroy(self, request, *args, **kwargs) -> None:
+        """
+        Deletes the logged-in user's account.
+        """
+        current_user = get_current_user_from_request(request)
+        instance = self.get_object()
+        if instance is current_user:
+            self.perform_destroy(current_user)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            return Response(status=HTTP_401_UNAUTHORIZED)
+
 
 class FollowingViewSet(viewsets.GenericViewSet, 
                        mixins.ListModelMixin, 
@@ -106,6 +157,7 @@ class FollowingViewSet(viewsets.GenericViewSet,
     lookup_value_regex = '[^/]+_[^/]+'
 
 
+    # Overriding queryset to only expose `Follow`s involving the currently logged-in user.
     def get_queryset(self):
         current_user = get_current_user_from_request(self.request)
         follows = Follow.objects.filter(follower=current_user).all()
@@ -123,8 +175,7 @@ class FollowingViewSet(viewsets.GenericViewSet,
         # Use a serializer to validate that the request data contains
         # information representing a `Follow` object.
         serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
         
         # Ensures clients can only edit their own follows, not other users'.
         follow = Follow(**serializer.validated_data)
