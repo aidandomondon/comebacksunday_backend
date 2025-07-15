@@ -18,12 +18,6 @@ class ExtendedUser(models.Model):
         on_delete=models.CASCADE,
         related_name='extendeduser'
     )
-    following = models.ManyToManyField(
-        "self", 
-        symmetrical=False, 
-        related_name="followers",
-        verbose_name="Users this user is following."
-    )
 
 class Follow(models.Model):
     """
