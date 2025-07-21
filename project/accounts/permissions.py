@@ -13,9 +13,7 @@ class FollowRequestPermission(permissions.BasePermission):
     Allows recipients of a request to accept it.
     """
     def has_object_permission(self, request, view, obj):
-        if view.action in ('list', 'create'):
-            return True
-        elif view.action in ('retrieve', 'destroy'):
+        if view.action in ('retrieve', 'destroy'):
             current_user = get_current_user_from_request(request)
             return current_user == obj.follower or current_user == obj.followee
         elif view.action == 'accept':
@@ -32,9 +30,7 @@ class FollowPermission(permissions.BasePermission):
     Allows users to list their followers.
     """
     def has_object_permission(self, request, view, obj):
-        if view.action == 'list':
-            return True
-        elif view.action in ('retrieve', 'destroy'):
+        if view.action in ('retrieve', 'destroy'):
             current_user = get_current_user_from_request(request)
             return current_user == obj.follower or current_user == obj.followee
         else:
