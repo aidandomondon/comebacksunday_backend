@@ -2,24 +2,19 @@
 Implements views that a standard (i.e. non-admin) user of the app can interact with.
 """
 
-from ..models import ExtendedUser, Post, Follow
+from ..models import ExtendedUser, Post, Follow, FollowRequest
 from rest_framework import permissions, viewsets, mixins, status
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
-from ..serializers import PostSerializer, FollowSerializer, ExtendedUserSerializer
-from ..services import DateManager
+from ..serializers import PostSerializer, FollowSerializer, ExtendedUserSerializer, FollowRequestSerializer
+from ..services import DateManager, get_current_user_from_request, FollowService
 from rest_framework.status import HTTP_201_CREATED, HTTP_403_FORBIDDEN, HTTP_401_UNAUTHORIZED
 from rest_framework.response import Response
 from django.db.models import Subquery, Q
 from django.db.models.manager import BaseManager
 from django.http import HttpRequest
-
-
-def get_current_user_from_request(request: HttpRequest) -> ExtendedUser:
-    """
-    Returns the `ExtendedUser` currently logged in.
-    """
-    return ExtendedUser.objects.get(user=request.user)
+from rest_framework.decorators import action
+from ..permissions import FollowRequestPermission, FollowPermission
 
 
 def get_posts_current_user_can_view(request: HttpRequest) -> BaseManager[Post]:
@@ -137,7 +132,7 @@ class ExtendedUserViewSet(viewsets.GenericViewSet,  # Does not inherit from List
         """
         current_user = get_current_user_from_request(request)
         instance = self.get_object()
-        if instance is current_user:
+        if instance == current_user:
             self.perform_destroy(current_user)
             return Response(status=status.HTTP_204_NO_CONTENT)
         else:
@@ -146,13 +141,12 @@ class ExtendedUserViewSet(viewsets.GenericViewSet,  # Does not inherit from List
 
 class FollowingViewSet(viewsets.GenericViewSet, 
                        mixins.ListModelMixin, 
-                       mixins.CreateModelMixin, 
                        mixins.DestroyModelMixin):
     """
     API endpoint that allows logged-in users to view and add to a list of users they follow.
     """
     serializer_class = FollowSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, FollowPermission]
     # lookup field's value will be searched for in patterns matching "follower_followee"
     lookup_value_regex = '[^/]+_[^/]+'
 
@@ -162,51 +156,9 @@ class FollowingViewSet(viewsets.GenericViewSet,
         current_user = get_current_user_from_request(self.request)
         follows = Follow.objects.filter(follower=current_user).all()
         return follows
+    
 
-
-    # Overriding `create` to add check that client is only creating a 
-    # `Follow` instance where they are the follower
-    def create(self, request) -> Response:
-        """
-        Creates a new `Follow` instance based on the data provided in `request`.
-        """
-        current_user = get_current_user_from_request(request)
-        
-        # Use a serializer to validate that the request data contains
-        # information representing a `Follow` object.
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        # Ensures clients can only edit their own follows, not other users'.
-        follow = Follow(**serializer.validated_data)
-        if follow.follower == current_user:
-            self.perform_create(serializer)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        else:
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
-            
-            
-    # Overriding `perform_create` to enforce that client is only creating a 
-    # `Follow` instance where they are the follower
-    def perform_create(self, serializer: FollowSerializer) -> None:
-        """
-        Executes custom routines that are to be executed upon instance creation.
-        """
-        current_user: ExtendedUser = get_current_user_from_request(self.request)
-        # Modify the request data's `follower` to be the current user.
-        # This is an extra safeguard to ensure clients can only 
-        # edit who they are following, not who others are.
-        serializer.save(follower=current_user)
-
-
-    # Overriding `destroy` to add check that client is only removing 
-    # `Follow` instances where they are the follower
-    def destroy(self, request, *args, **kwargs) -> Response:
-        """
-        Destroys the `Follow` instance between the `follower` and `followee`
-        specified in the url.
-        """
-
+    def get_object(self) -> Follow:
         # Extract follower and followee from the detected lookup field value.
         lookup_field_value = self.kwargs[self.lookup_field]
         # using IDs instead of usernames here to avoid parsing errors
@@ -217,24 +169,93 @@ class FollowingViewSet(viewsets.GenericViewSet,
             follower__user__id=follower_id,
             followee__user__id=followee_id
         )
+        return follow
 
-        # Prevents clients from editing other users' follows.
+
+class FollowRequestViewSet(viewsets.GenericViewSet,
+                           mixins.ListModelMixin,
+                           mixins.RetrieveModelMixin,
+                           mixins.CreateModelMixin,
+                           mixins.DestroyModelMixin):
+    """
+    API endpoint that allows logged-in users
+    """
+    serializer_class = FollowRequestSerializer
+    queryset = Follow.objects.none()
+    # lookup field's value will be searched for in patterns matching "follower_followee"
+    lookup_value_regex = '[^/]+_[^/]+'
+    permission_classes = [permissions.IsAuthenticated, FollowRequestPermission]
+
+
+    def get_object(self) -> Follow:
+        # Extract follower and followee from the detected lookup field value.
+        lookup_field_value = self.kwargs[self.lookup_field]
+        # using IDs instead of usernames here to avoid parsing errors
+        # with usernames that have underscores in them.
+        follower_id, followee_id = lookup_field_value.split('_')
+        follow = get_object_or_404(
+            self.get_queryset(),
+            follower__user__id=follower_id,
+            followee__user__id=followee_id
+        )
+        return follow
+
+
+    def get_queryset(self):
+        current_user = get_current_user_from_request(self.request)
+        match self.action:
+            case 'list':
+                return FollowRequest.objects.filter(followee=current_user)
+            case 'create':
+                return FollowRequest.objects.none() # create requests don't need to see any objects.
+            case 'retrieve':
+                return FollowRequest.objects.filter(
+                    Q(follower=current_user) | Q(followee=current_user)
+                )
+            case 'destroy':
+                return FollowRequest.objects.filter(
+                    Q(follower=current_user) | Q(followee=current_user)
+                )
+            case 'accept':
+                return FollowRequest.objects.filter(followee=current_user)
+            case _:
+                return FollowRequest.objects.none() # for unsupported actions, return none.
+    
+
+    # Overriding `create` to add check that client is only creating a 
+    # `FollowRequest` instance where they are the follower.
+    # This check is implemented here because it cannot be done via object-level permissions.
+    # DRF docs state that object-level permissions are not honored during `create` requests
+    # because `get_object` is never called. https://www.django-rest-framework.org/api-guide/permissions/
+    def create(self, request) -> Response:
+        """
+        Creates a new `FollowRequest` instance based on the data provided in `request`.
+        """
         current_user = get_current_user_from_request(request)
-        if follow.follower == current_user: 
-            self.perform_destroy(follow)
-            return Response(status=status.HTTP_204_NO_CONTENT)
+        
+        # Validate that request data contains info. representing a `FollowRequest`.
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Ensures clients can only edit their own follow requests, not other users'.
+        follow = FollowRequest(**serializer.validated_data)
+        if follow.follower == current_user:
+            try:
+                FollowService.create_request(follow.follower, follow.followee)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except FollowService.AlreadyFollowingException as e:
+                return Response(e.message, status=status.HTTP_200_OK)
+            except FollowService.AlreadyRequestedException as e:
+                return Response(e.message, status=status.HTTP_200_OK)
         else:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
 
 
-    # Overriding `perform_destroy` to enforce that client is only removing 
-    # `Follow` instances where they are the follower
-    def perform_destroy(self, instance: Follow) -> None:
+    @action(methods=["post"], detail=True)
+    def accept(self, request, pk=None) -> Response:
         """
-        Executes custom routines that are to be executed upon instance destruction.
+        Accepts the follow request.
         """
-        current_user: ExtendedUser = get_current_user_from_request(self.request)
-        # Only perform the deletion if the `follower` is the current user.
-        # This will ensure clients can only unfollow users on their own account.
-        if instance.follower == current_user:
-            instance.delete()
+        instance: FollowRequest = self.get_object()
+        instance.accept()
+        return Response(HTTP_201_CREATED)

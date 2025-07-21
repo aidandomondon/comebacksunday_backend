@@ -4,7 +4,7 @@ Contains serializers for the app, used to validate data used to create/store dat
 
 from rest_framework import serializers
 from django.contrib.auth.models import Group, User
-from .models import ExtendedUser, Post, Follow
+from .models import ExtendedUser, Post, Follow, FollowRequest
 
 class UserSerializer(serializers.ModelSerializer):
     # Override password field to make write only to avoid exposing passwords in API
@@ -64,4 +64,9 @@ class PostSerializer(serializers.HyperlinkedModelSerializer):
 class FollowSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Follow
+        fields = ['follower', 'followee']
+
+class FollowRequestSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = FollowRequest
         fields = ['follower', 'followee']

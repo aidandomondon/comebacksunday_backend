@@ -4,6 +4,15 @@ that is too complex to be performed in a serializer or view/viewset.
 """
 from datetime import datetime, timezone, timedelta
 from enum import Enum
+from django.http import HttpRequest
+from .models import ExtendedUser, Follow, FollowRequest
+
+
+def get_current_user_from_request(request: HttpRequest) -> ExtendedUser:
+    """
+    Returns the `ExtendedUser` currently logged in.
+    """
+    return ExtendedUser.objects.get(user=request.user)
 
 
 class ISOWeekday(Enum):
@@ -117,3 +126,27 @@ class DateManager:
             # Find how many days in Kiribati since it was last sunday
             kiritbati_days_since_sunday: int = kiribati_now.weekday()
             return kiribati_beginning_of_today - timedelta(days=kiritbati_days_since_sunday)
+        
+class FollowService:
+
+    class AlreadyFollowingException(Exception):
+        message = "User already follows the requested user."
+        def __init__(self):
+            super().__init__(self.message)
+
+    class AlreadyRequestedException(Exception):
+        message = "User already has a pending request to follow the requested user."
+        def __init__(self):
+            super().__init__(self.message)
+        
+    @staticmethod
+    def create_request(follower: ExtendedUser, followee: ExtendedUser) -> None:
+        # Do not create a follow request if follower already following followee
+        if Follow.objects.filter(follower=follower, followee=followee).exists():
+            raise FollowService.AlreadyFollowingException()
+        
+        # Custom error for when repeat requests are attempted
+        if FollowRequest.objects.filter(follower=follower, followee=followee).exists():
+            raise FollowService.AlreadyRequestedException()
+        
+        FollowRequest.objects.create(follower=follower, followee=followee)

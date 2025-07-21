@@ -4,6 +4,7 @@ from rest_framework import routers
 from accounts.views import admin_views, user_views
 
 router = routers.DefaultRouter()
+router.register(r'follow-requests', user_views.FollowRequestViewSet)
 # router.register(r'admin_posts', admin_views.PostViewSet, basename='admin_posts')
 router.register(r'posts', user_views.PostViewSet, basename='posts')
 router.register(r'extended-users', user_views.ExtendedUserViewSet)
