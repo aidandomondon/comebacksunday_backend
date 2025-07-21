@@ -27,7 +27,6 @@ class FollowPermission(permissions.BasePermission):
     """
     Custom permission to allow the follower or followee of a follow relationship to edit it.
     Allows the follower and followee to view or destroy the relationship.
-    Allows users to list their followers.
     """
     def has_object_permission(self, request, view, obj):
         if view.action in ('retrieve', 'destroy'):
