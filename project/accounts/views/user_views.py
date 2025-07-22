@@ -40,6 +40,10 @@ class PostViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMix
         serializer.is_valid(raise_exception=True)
         
         # Set the post's author to be the currently-logged in user
+        # This is forced here rather than checked in permissions since
+        # it cannot be done via object-level permissions.
+        # DRF docs state that object-level permissions are not honored during `create` requests
+        # because `get_object` is never called. https://www.django-rest-framework.org/api-guide/permissions/
         extended_user = ExtendedUser.objects.get(user=request.user)
         serializer.save(author=extended_user)
         self.perform_create(serializer)
