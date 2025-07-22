@@ -4,7 +4,7 @@ Contains permission sets used to define access to views/viewsets.
 
 from rest_framework import permissions
 from .services import get_current_user_from_request
-from .models import ExtendedUser, Follow
+from .models import Follow
 
 class FollowRequestPermission(permissions.BasePermission):
     """
@@ -48,7 +48,6 @@ class PostPermission(permissions.BasePermission):
     Logged-in users can destroy their own posts
     and retrieve their own posts and the posts of users they follow.
     """
-    
     def has_object_permission(self, request, view, obj):
         supported_actions = ('destroy', 'retrieve')
         if view.action not in supported_actions:
@@ -73,7 +72,6 @@ class ExtendedUserPermission(permissions.BasePermission):
     Logged-in users can retrieve, destroy, and update their own posts,
     and can retrieve the posts of the users they follow.
     """
-
     def has_object_permission(self, request, view, obj):
         supported_actions = ('retrieve', 'destroy', 'update')
         if view.action not in supported_actions:
