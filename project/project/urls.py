@@ -13,6 +13,7 @@ router.register(r'extended-users', user_views.ExtendedUserViewSet)
 router.register(r'feed', user_views.FeedViewSet, basename='feed')
 # router.register(r'admin_follow', admin_views.FollowViewSet, basename='admin_follow')
 router.register(r'following', user_views.FollowingViewSet, basename='following')
+router.register(r'followers', user_views.FollowersViewSet, basename='followers')
 
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browsable API.

@@ -102,25 +102,18 @@ class ExtendedUserViewSet(viewsets.GenericViewSet,  # Does not inherit from List
     permission_classes = [permissions.IsAuthenticated, ExtendedUserPermission]
 
 
-class FollowingViewSet(viewsets.GenericViewSet, 
-                       mixins.ListModelMixin,
-                       mixins.RetrieveModelMixin,
-                       mixins.DestroyModelMixin):
+class FollowViewSet(viewsets.GenericViewSet,
+                    mixins.ListModelMixin,
+                    mixins.RetrieveModelMixin,
+                    mixins.DestroyModelMixin):
     """
-    API endpoint that allows logged-in users to view and remove from a list of users they follow.
+    Abstract viewset for viewsets that manage lists and instances of `Follow`s related
+    to the logged-in user.
     """
     serializer_class = FollowSerializer
     permission_classes = [permissions.IsAuthenticated, FollowPermission]
     # lookup field's value will be searched for in patterns matching "follower_followee"
     lookup_value_regex = '[^/]+_[^/]+'
-
-
-    # Overriding queryset to only expose the logged-in user's `Follow`s
-    def get_queryset(self):
-        current_user = get_current_user_from_request(self.request)
-        follows = Follow.objects.filter(follower=current_user).all()
-        return follows
-    
 
     def get_object(self) -> Follow:
         # Extract follower and followee from the detected lookup field value.
@@ -134,6 +127,28 @@ class FollowingViewSet(viewsets.GenericViewSet,
             followee__user__id=followee_id
         )
         return follow
+
+
+class FollowingViewSet(FollowViewSet):
+    """
+    API endpoint that allows logged-in users to view and remove from a list of users they follow.
+    """
+    # Overriding queryset to only expose the users the logged-in user follows.
+    def get_queryset(self):
+        current_user = get_current_user_from_request(self.request)
+        follows = Follow.objects.filter(follower=current_user).all()
+        return follows
+    
+
+class FollowersViewSet(FollowViewSet):
+    """
+    API endpoint that allows logged-in users to view and remove from a list of users they follow.
+    """
+    # Overriding queryset to only expose the logged-in user's followers.
+    def get_queryset(self):
+        current_user = get_current_user_from_request(self.request)
+        follows = Follow.objects.filter(followee=current_user).all()
+        return follows
 
 
 class FollowRequestViewSet(viewsets.GenericViewSet,
