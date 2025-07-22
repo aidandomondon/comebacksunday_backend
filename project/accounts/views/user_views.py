@@ -91,9 +91,9 @@ class FeedViewSet(viewsets.GenericViewSet,  # Only extends `ListModelMixin` beca
         return feed
 
 
-class ExtendedUserViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMixin because `FollowingViewSet`
-                          mixins.CreateModelMixin,  # is intended to be the primary way to view lists of multiple users
-                          mixins.RetrieveModelMixin,
+class ExtendedUserViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMixin because
+                          mixins.CreateModelMixin,  # `FollowViewSet`s are intended to be the
+                          mixins.RetrieveModelMixin,    # way to view lists of multiple users
                           mixins.DestroyModelMixin,
                           mixins.UpdateModelMixin):
     """
