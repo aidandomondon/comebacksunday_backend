@@ -59,6 +59,11 @@ class PostPermission(permissions.BasePermission):
             return False    # unsupported action
         
 class ExtendedUserPermission(permissions.BasePermission):
+    """
+    Custom permission to control access to ExtendedUsers.
+    Logged-in users can retrieve, destroy, and update their own posts,
+    and can retrieve the posts of the users they follow.
+    """
 
     def has_object_permission(self, request, view, obj):
         current_user = get_current_user_from_request(request)
