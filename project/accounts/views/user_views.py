@@ -10,33 +10,14 @@ from ..serializers import PostSerializer, FollowSerializer, ExtendedUserSerializ
 from ..services import DateManager, get_current_user_from_request, FollowService
 from rest_framework.status import HTTP_201_CREATED, HTTP_403_FORBIDDEN, HTTP_401_UNAUTHORIZED
 from rest_framework.response import Response
-from django.db.models import Subquery, Q
+from django.db.models import Subquery, Q, QuerySet
 from django.db.models.manager import BaseManager
 from django.http import HttpRequest
 from rest_framework.decorators import action
-from ..permissions import FollowRequestPermission, FollowPermission
+from ..permissions import FollowRequestPermission, FollowPermission, PostPermission
 
 
-def get_posts_current_user_can_view(request: HttpRequest) -> BaseManager[Post]:
-    """
-    Returns all posts the user has permission to view.
-    """
-    # Overriding the queryset to restrict to only posts that the logged-in
-    # user has permission to view.
-    # 
-    # DRF documentation says that filtering the queryset is the recommended
-    # way to restrict access to model instances.
-    # From https://www.django-rest-framework.org/api-guide/permissions/:
-    # "Often when you're using object level permissions you'll also want to filter 
-    # the queryset appropriately, to ensure that users only have visibility onto 
-    # instances that they are permitted to view."
-    current_user: ExtendedUser = get_current_user_from_request(request)
-    followed_users = Follow.objects.filter(follower=current_user).values('followee')
-    posts = Post.objects.filter(
-        Q(author__in=Subquery(followed_users))
-        | Q(author=current_user)    # Users can also view their own posts.
-    )
-    return posts
+#### AMMEND, CURRENTLY, FOLLOWERS CAN DELETE CREATOR'S POSTS1
 
 
 class PostViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMixin because `FeedViewSet`
@@ -49,7 +30,7 @@ class PostViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMix
     and delete single posts they have permission to delete.
     """
     serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, PostPermission]
 
     def create(self, request, *args, **kwargs):
         """
@@ -69,11 +50,24 @@ class PostViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMix
         self.perform_create(serializer)
         return Response(status=HTTP_201_CREATED)
     
-    def get_queryset(self):
+    # Overriding the queryset to restrict to only posts that the logged-in
+    # user has permission to view.
+    # DRF documentation says that filtering the queryset is the recommended
+    # way to restrict access to model instances.
+    # From https://www.django-rest-framework.org/api-guide/permissions/:
+    # "Often when you're using object level permissions you'll also want to filter 
+    # the queryset appropriately, to ensure that users only have visibility onto 
+    # instances that they are permitted to view."
+    def get_queryset(self) -> QuerySet:
         """
         Returns the posts that the logged-in user has permission to view.
         """
-        return get_posts_current_user_can_view(self.request)
+        current_user: ExtendedUser = get_current_user_from_request(self.request)
+        followed_users = Follow.objects.filter(follower=current_user).values('followee')
+        return Post.objects.filter(
+            Q(author__in=Subquery(followed_users))
+            | Q(author=current_user)    # Users can also retrieve their own posts.
+        )
 
 
 class FeedViewSet(viewsets.GenericViewSet,  # Only extends `ListModelMixin` because other
@@ -84,13 +78,18 @@ class FeedViewSet(viewsets.GenericViewSet,  # Only extends `ListModelMixin` beca
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         """
         Returns the posts in the logged-in user's feed.
         """
-        return get_posts_current_user_can_view(self.request) \
-            .filter(datetime__gte=DateManager.last_sunday()) \
-            .order_by('-datetime')
+        current_user: ExtendedUser = get_current_user_from_request(self.request)
+        followed_users = Follow.objects.filter(follower=current_user).values('followee')
+        posts = Post.objects.filter(
+            Q(author__in=Subquery(followed_users))
+            | Q(author=current_user)
+        )
+        feed = posts.filter(datetime__gte=DateManager.last_sunday()).order_by('-datetime')
+        return feed
 
 
 class ExtendedUserViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMixin because `FollowingViewSet`

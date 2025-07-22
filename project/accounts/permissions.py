@@ -4,6 +4,7 @@ Contains permission sets used to define access to views/viewsets.
 
 from rest_framework import permissions
 from .services import get_current_user_from_request
+from .models import Follow
 
 class FollowRequestPermission(permissions.BasePermission):
     """
@@ -32,5 +33,27 @@ class FollowPermission(permissions.BasePermission):
         if view.action in ('retrieve', 'destroy'):
             current_user = get_current_user_from_request(request)
             return current_user == obj.follower or current_user == obj.followee
+        else:
+            return False    # unsupported action
+
+
+class PostPermission(permissions.BasePermission):
+    """
+    Custom permission to control access to singular posts.
+    Logged-in users can destroy their own posts
+    and retrieve their own posts and the posts of users they follow.
+    """
+    
+    def has_object_permission(self, request, view, obj):
+        current_user = get_current_user_from_request(request)
+        current_user_is_author = current_user == obj.author
+        if view.action == 'destroy':
+            return current_user_is_author
+        elif view.action == 'retrieve':
+            current_user_follows_author = Follow.objects.filter(
+                follower=current_user,
+                followee=obj.author
+            ).exists()
+            return current_user_is_author or current_user_follows_author
         else:
             return False    # unsupported action
