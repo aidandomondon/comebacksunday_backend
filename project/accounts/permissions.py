@@ -57,3 +57,15 @@ class PostPermission(permissions.BasePermission):
             return current_user_is_author or current_user_follows_author
         else:
             return False    # unsupported action
+        
+class ExtendedUserPermission(permissions.BasePermission):
+
+    def has_object_permission(self, request, view, obj):
+        current_user = get_current_user_from_request(request)
+        if view.action == 'retrieve':
+            return current_user == obj or \
+                Follow.objects.filter(follower=current_user, followee=obj)
+        elif view.action in ('destroy', 'update'):
+            return current_user == obj
+        else:
+            return False    # unsupported action

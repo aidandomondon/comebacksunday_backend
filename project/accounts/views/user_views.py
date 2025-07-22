@@ -14,7 +14,7 @@ from django.db.models import Subquery, Q, QuerySet
 from django.db.models.manager import BaseManager
 from django.http import HttpRequest
 from rest_framework.decorators import action
-from ..permissions import FollowRequestPermission, FollowPermission, PostPermission
+from ..permissions import FollowRequestPermission, FollowPermission, PostPermission, ExtendedUserPermission
 
 
 class PostViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMixin because `FeedViewSet`
@@ -101,38 +101,7 @@ class ExtendedUserViewSet(viewsets.GenericViewSet,  # Does not inherit from List
     """
     serializer_class = ExtendedUserSerializer
     queryset = ExtendedUser.objects.all()
-    permission_classes = [permissions.IsAuthenticated]
-
-
-    # Overriding `retrieve` to enforce that user can only view their own profile
-    # or the profiles of those they follow.
-    def retrieve(self, request, *args, **kwargs) -> Response:
-        """
-        Gets information about the requested user if the logged-in user is permitted.
-        """
-        instance: ExtendedUser = self.get_object()
-        current_user = get_current_user_from_request(request)
-        serializer: ExtendedUserSerializer = self.get_serializer(data=request.data)
-        current_user_in_followers = Follow.objects.filter(follower=current_user, followee=instance).exists()
-        if current_user_in_followers or current_user == instance:
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data)
-        else:
-            return Response(data="Private account.", status=HTTP_401_UNAUTHORIZED)
-
-
-    # Overriding `destroy` to enforce that user can only delete their own account.
-    def destroy(self, request, *args, **kwargs) -> None:
-        """
-        Deletes the logged-in user's account.
-        """
-        current_user = get_current_user_from_request(request)
-        instance = self.get_object()
-        if instance == current_user:
-            self.perform_destroy(current_user)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        else:
-            return Response(status=HTTP_401_UNAUTHORIZED)
+    permission_classes = [permissions.IsAuthenticated, ExtendedUserPermission]
 
 
 class FollowingViewSet(viewsets.GenericViewSet, 
