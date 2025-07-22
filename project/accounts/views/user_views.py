@@ -8,11 +8,9 @@ from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from ..serializers import PostSerializer, FollowSerializer, ExtendedUserSerializer, FollowRequestSerializer
 from ..services import DateManager, get_current_user_from_request, FollowService
-from rest_framework.status import HTTP_201_CREATED, HTTP_403_FORBIDDEN, HTTP_401_UNAUTHORIZED
+from rest_framework.status import HTTP_201_CREATED, HTTP_403_FORBIDDEN
 from rest_framework.response import Response
 from django.db.models import Subquery, Q, QuerySet
-from django.db.models.manager import BaseManager
-from django.http import HttpRequest
 from rest_framework.decorators import action
 from ..permissions import FollowRequestPermission, FollowPermission, PostPermission, ExtendedUserPermission
 
@@ -185,7 +183,7 @@ class FollowRequestViewSet(viewsets.GenericViewSet,
                 return FollowRequest.objects.filter(followee=current_user)
             case _:
                 return FollowRequest.objects.none() # for unsupported actions, return none.
-    
+
 
     # Overriding `create` to add check that client is only creating a 
     # `FollowRequest` instance where they are the follower.
