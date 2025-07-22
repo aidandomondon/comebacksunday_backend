@@ -128,6 +128,9 @@ class DateManager:
             return kiribati_beginning_of_today - timedelta(days=kiritbati_days_since_sunday)
         
 class FollowService:
+    """
+    Methods and classes to manage follower-followee relationships and follow requests.
+    """
 
     class AlreadyFollowingException(Exception):
         message = "User already follows the requested user."
