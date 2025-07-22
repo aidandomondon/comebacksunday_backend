@@ -17,9 +17,6 @@ from rest_framework.decorators import action
 from ..permissions import FollowRequestPermission, FollowPermission, PostPermission
 
 
-#### AMMEND, CURRENTLY, FOLLOWERS CAN DELETE CREATOR'S POSTS1
-
-
 class PostViewSet(viewsets.GenericViewSet,  # Does not inherit from ListModelMixin because `FeedViewSet`
                   mixins.CreateModelMixin,  # is intended to be the primary way to view lists of multiple posts
                   mixins.RetrieveModelMixin,
