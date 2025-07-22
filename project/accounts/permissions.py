@@ -4,7 +4,7 @@ Contains permission sets used to define access to views/viewsets.
 
 from rest_framework import permissions
 from .services import get_current_user_from_request
-from .models import Follow
+from .models import ExtendedUser, Follow
 
 class FollowRequestPermission(permissions.BasePermission):
     """
@@ -14,14 +14,16 @@ class FollowRequestPermission(permissions.BasePermission):
     Allows recipients of a request to accept it.
     """
     def has_object_permission(self, request, view, obj):
+        supported_actions = ('retrieve', 'destroy', 'accept')
+        if view.action not in supported_actions:
+            return False
+        if not request.user or not request.user.is_authenticated:
+            return False
+        current_user = get_current_user_from_request(request)
         if view.action in ('retrieve', 'destroy'):
-            current_user = get_current_user_from_request(request)
             return current_user == obj.follower or current_user == obj.followee
-        elif view.action == 'accept':
-            current_user = get_current_user_from_request(request)
+        if view.action == 'accept':
             return current_user == obj.followee
-        else:
-            return False    # unsupported action
 
             
 class FollowPermission(permissions.BasePermission):
@@ -30,11 +32,14 @@ class FollowPermission(permissions.BasePermission):
     Allows the follower and followee to view or destroy the relationship.
     """
     def has_object_permission(self, request, view, obj):
+        supported_actions = ('retrieve', 'destroy')
+        if view.action not in supported_actions:
+            return False
+        if not request.user or not request.user.is_authenticated:
+            return False
+        current_user = get_current_user_from_request(request)
         if view.action in ('retrieve', 'destroy'):
-            current_user = get_current_user_from_request(request)
             return current_user == obj.follower or current_user == obj.followee
-        else:
-            return False    # unsupported action
 
 
 class PostPermission(permissions.BasePermission):
@@ -45,18 +50,22 @@ class PostPermission(permissions.BasePermission):
     """
     
     def has_object_permission(self, request, view, obj):
+        supported_actions = ('destroy', 'retrieve')
+        if view.action not in supported_actions:
+            return False
+        if not request.user or not request.user.is_authenticated:
+            return False
         current_user = get_current_user_from_request(request)
         current_user_is_author = current_user == obj.author
         if view.action == 'destroy':
             return current_user_is_author
-        elif view.action == 'retrieve':
+        if view.action == 'retrieve':
             current_user_follows_author = Follow.objects.filter(
                 follower=current_user,
                 followee=obj.author
             ).exists()
             return current_user_is_author or current_user_follows_author
-        else:
-            return False    # unsupported action
+
         
 class ExtendedUserPermission(permissions.BasePermission):
     """
@@ -66,11 +75,14 @@ class ExtendedUserPermission(permissions.BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):
+        supported_actions = ('retrieve', 'destroy', 'update')
+        if view.action not in supported_actions:
+            return False
+        if not request.user or not request.user.is_authenticated:
+            return False
         current_user = get_current_user_from_request(request)
         if view.action == 'retrieve':
             return current_user == obj or \
                 Follow.objects.filter(follower=current_user, followee=obj)
-        elif view.action in ('destroy', 'update'):
+        if view.action in ('destroy', 'update'):
             return current_user == obj
-        else:
-            return False    # unsupported action
