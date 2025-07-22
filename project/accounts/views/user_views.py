@@ -205,11 +205,6 @@ class FollowRequestViewSet(viewsets.GenericViewSet,
                 return FollowRequest.objects.none() # for unsupported actions, return none.
 
 
-    # Overriding `create` to add check that client is only creating a 
-    # `FollowRequest` instance where they are the follower.
-    # This check is implemented here because it cannot be done via object-level permissions.
-    # DRF docs state that object-level permissions are not honored during `create` requests
-    # because `get_object` is never called. https://www.django-rest-framework.org/api-guide/permissions/
     def create(self, request) -> Response:
         """
         Creates a new `FollowRequest` instance based on the data provided in `request`.
@@ -221,6 +216,9 @@ class FollowRequestViewSet(viewsets.GenericViewSet,
         serializer.is_valid(raise_exception=True)
 
         # Ensures clients can only edit their own follow requests, not other users'.
+        # This check is implemented here because it cannot be done via object-level permissions.
+        # DRF docs state that object-level permissions are not honored during `create` requests
+        # because `get_object` is never called. https://www.django-rest-framework.org/api-guide/permissions/
         follow = FollowRequest(**serializer.validated_data)
         if follow.follower == current_user:
             try:
