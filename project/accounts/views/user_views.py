@@ -103,10 +103,11 @@ class ExtendedUserViewSet(viewsets.GenericViewSet,  # Does not inherit from List
 
 
 class FollowingViewSet(viewsets.GenericViewSet, 
-                       mixins.ListModelMixin, 
+                       mixins.ListModelMixin,
+                       mixins.RetrieveModelMixin,
                        mixins.DestroyModelMixin):
     """
-    API endpoint that allows logged-in users to view and add to a list of users they follow.
+    API endpoint that allows logged-in users to view and remove from a list of users they follow.
     """
     serializer_class = FollowSerializer
     permission_classes = [permissions.IsAuthenticated, FollowPermission]
@@ -114,7 +115,7 @@ class FollowingViewSet(viewsets.GenericViewSet,
     lookup_value_regex = '[^/]+_[^/]+'
 
 
-    # Overriding queryset to only expose `Follow`s involving the currently logged-in user.
+    # Overriding queryset to only expose the logged-in user's `Follow`s
     def get_queryset(self):
         current_user = get_current_user_from_request(self.request)
         follows = Follow.objects.filter(follower=current_user).all()
