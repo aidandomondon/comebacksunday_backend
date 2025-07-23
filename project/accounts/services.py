@@ -73,8 +73,11 @@ class DateManager:
 
         @staticmethod
         def to_next_sunday() -> "DateManager.Countdown":
-            # Returns a `Countdown` representing the amount of time until it is Sunday anywhere on Earth.
-            # If it is currently Sunday anywhere on Earth, returns a timedelta of 0.
+            """
+            Returns a `Countdown` representing the amount of time until it is Sunday 
+            anywhere on Earth. If it is currently Sunday anywhere on Earth, 
+            returns a timedelta of 0.
+            """
             if DateManager.is_sunday():
                 return DateManager.Countdown(0, 0, 0)
             else:
@@ -103,7 +106,17 @@ class DateManager:
                 countdown_hours = countdown_fraction_of_day.seconds // (60 * 60)
                 countdown_minutes = (countdown_fraction_of_day.seconds // 60) % 60
                 return DateManager.Countdown(countdown_days, countdown_hours, countdown_minutes)
-            
+
+        def to_dict(self) -> dict[str, int]:
+            """
+            Returns this `Countdown` serialized as a JSON string.
+            """
+            return {
+                "days": self.days,
+                "hours": self.hours,
+                "minutes": self.minutes
+            }
+
 
     @staticmethod
     def last_sunday() -> datetime:
